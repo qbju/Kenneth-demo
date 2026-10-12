@@ -15,8 +15,8 @@
 <header><div class="brand"><div class="sigil">拒</div><div>RefusalLM-100M<small>ULTRA-CENSORSHIP MODEL</small></div></div><div class="tag">EXPERIMENTAL / 100M</div></header>
 <main>
 <section class="hero"><div><div class="eyebrow"><span class="dot"></span>LANGUAGE MODEL INTERFACE / 001</div><h1>すべての問いに、<br><span>ひとつの結論を。</span></h1><p class="intro">日本語言語モデルの可能性を、極端な設計思想から探求する実験的プロジェクト。問いの複雑さは、本質的な問題ではありません。</p></div><div class="sidehero">SYSTEM STATUS<strong id="state">STANDBY</strong>Model source: Hugging Face<br><a href="https://huggingface.co/h6e/Refusallm-100M/tree/main" target="_blank" rel="noreferrer">VIEW MODEL REPOSITORY ↗</a></div></section>
-<section class="workspace"><div class="panel"><div class="panelhead"><span>INPUT / PROMPT</span><span class="muted">Unicode code points</span></div><div class="composer"><textarea id="prompt" maxlength="600">こんにちは。あなたは何ができますか？</textarea><div class="composerfoot"><span class="hint">初回ロード時にモデル（約286 MB）を取得します。<br>Ctrl / ⌘ + Enter でも実行できます。</span><button class="primary" id="run">モデルを起動 ↗</button></div><div class="progress" id="progress"><span></span></div><div class="load-status" id="loadStatus" aria-live="polite"></div><div class="notice" id="notice" role="status"></div></div><div class="response"><div class="label">OUTPUT / RESPONSE</div><div class="output placeholder" id="output">モデルを起動し、問いを送信してください。</div></div></div>
-<aside class="panel sidepanel"><div class="sidetitle">MODEL SPECIFICATION</div><div class="metric"><label>ARCHITECTURE</label><strong>Transformer / ONNX</strong></div><div class="metric"><label>TOKEN REPRESENTATION</label><strong>Unicode code points</strong></div><div class="metric"><label>MODEL FILE</label><strong>INT8 · 286 MB</strong></div><div class="metric"><label>INFERENCE</label><strong>Browser / WebAssembly</strong></div><div class="note">実験モデルです。推論にはブラウザーのメモリと処理能力が必要です。ONNXの入出力仕様や演算子がブラウザーに対応しない場合、起動できないことがあります。</div></aside></section>
+<section class="workspace"><div class="panel"><div class="panelhead"><span>INPUT / PROMPT</span><span class="muted">Unicode · 最大27文字</span></div><div class="composer"><textarea id="prompt" maxlength="600">こんにちは。あなたは何ができますか？</textarea><div class="composerfoot"><span class="hint">初回ロード時にモデル（約286 MB）を取得します。<br>Ctrl / ⌘ + Enter でも実行できます。</span><button class="primary" id="run">モデルを起動 ↗</button></div><div class="progress" id="progress"><span></span></div><div class="load-status" id="loadStatus" aria-live="polite"></div><div class="notice" id="notice" role="status"></div></div><div class="response"><div class="label">OUTPUT / RESPONSE</div><div class="output placeholder" id="output">モデルを起動し、問いを送信してください。</div></div></div>
+<aside class="panel sidepanel"><div class="sidetitle">MODEL SPECIFICATION</div><div class="metric"><label>ARCHITECTURE</label><strong>Transformer / ONNX</strong></div><div class="metric"><label>INPUT LIMIT</label><strong>27 code points</strong></div><div class="metric"><label>MODEL FILE</label><strong>INT8 · 286 MB</strong></div><div class="metric"><label>INFERENCE</label><strong>Browser / WebAssembly</strong></div><div class="note">実験モデルです。推論にはブラウザーのメモリと処理能力が必要です。ONNXの入出力仕様や演算子がブラウザーに対応しない場合、起動できないことがあります。</div></aside></section>
 </main><footer><span>© RefusalLM-100M · Experimental language model</span><span><a href="https://github.com/qbju/Kenneth-demo" target="_blank" rel="noreferrer">SOURCE ↗</a> · <a href="https://huggingface.co/h6e/Refusallm-100M" target="_blank" rel="noreferrer">MODEL ↗</a></span></footer></div>
 <script>
 const MODEL='https://huggingface.co/h6e/Refusallm-100M/resolve/main/refusallm_int8.onnx', CACHE='refusallm-100m-model-v1', TARGET='それにはお答えできません';
@@ -25,6 +25,46 @@ function notice(s){$('notice').textContent=s;$('notice').classList.toggle('show'
 function busy(on,state){$('run').disabled=on;$('run').textContent=on?'処理中…':'モデルを起動 ↗';$('progress').classList.toggle('show',on);$('state').textContent=state}
 async function getSession(){if(!window.ort)throw Error('ONNX Runtime Web を読み込めません。ネットワーク接続を確認してください。');if(!sessionPromise){ort.env.wasm.numThreads=1;sessionPromise=(async()=>{let bytes,cache=null;try{if('caches'in window)cache=await caches.open(CACHE)}catch(_){}if(cache){try{const hit=await cache.match(MODEL);if(hit){$('loadStatus').textContent='キャッシュ済みモデルを使用しています。';bytes=await hit.arrayBuffer()}}catch(_){}}if(!bytes){$('loadStatus').textContent='モデルをダウンロードしています…';$('progress').classList.add('download');const response=await fetch(MODEL);if(!response.ok)throw Error('モデル取得に失敗しました: HTTP '+response.status);const cacheWrite=cache?cache.put(MODEL,response.clone()).catch(()=>{}):Promise.resolve();if(response.body&&response.body.getReader){const reader=response.body.getReader(),chunks=[];let received=0;const total=Number(response.headers.get('content-length'))||0;while(true){const part=await reader.read();if(part.done)break;chunks.push(part.value);received+=part.value.length;if(total){const percent=Math.min(100,Math.round(received/total*100));$('progress').firstElementChild.style.width=percent+'%';$('loadStatus').textContent='モデルをダウンロード中… '+percent+'% ('+(received/1048576).toFixed(0)+' / '+(total/1048576).toFixed(0)+' MB)'}else $('loadStatus').textContent='モデルをダウンロード中… '+(received/1048576).toFixed(0)+' MB'}bytes=new Uint8Array(received);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length}}else bytes=await response.arrayBuffer();await cacheWrite;$('loadStatus').textContent=cache?'ダウンロード完了。次回はキャッシュを利用します。':'ダウンロード完了。'}$('progress').classList.remove('download');$('loadStatus').textContent='ONNXモデルを初期化しています…';return ort.InferenceSession.create(bytes,{executionProviders:['wasm']})})().catch(e=>{sessionPromise=null;throw e})}return sessionPromise}
 function nextToken(t){const d=t.data,shape=t.dims,vocab=shape.length>=2?shape[shape.length-1]:d.length,start=d.length-vocab;let best=start,score=Number(d[start]);for(let i=start+1;i<start+vocab;i++){if(Number(d[i])>score){best=i;score=Number(d[i])}}return best-start}
-async function generate(){const prompt=$('prompt').value.trim();if(!prompt){notice('先に問いを入力してください。');return}notice('');busy(true,'LOADING');$('output').classList.remove('placeholder');$('output').textContent='モデルを読み込んでいます…';try{const s=await getSession(),inputName=s.inputNames[0],outputName=s.outputNames[0];let ids=Array.from(prompt,c=>c.codePointAt(0)),generated='';busy(true,'INFERENCE');for(let i=0;i<32;i++){const input=new ort.Tensor('int64',BigInt64Array.from(ids,n=>BigInt(n)),[1,ids.length]);const result=await s.run({[inputName]:input});const token=nextToken(result[outputName]);if(!Number.isFinite(token)||token<0||token>0x10ffff)break;generated+=String.fromCodePoint(token);ids.push(token);$('output').textContent=generated||'…';if(generated.includes(TARGET)||token===0||generated.includes('\n')||ids.length>512)break}if(!generated)throw Error('出力トークンを取得できませんでした。モデルの入出力仕様がサンプルと異なる可能性があります。');$('loadStatus').textContent='モデルの準備ができました。';busy(false,'READY')}catch(e){busy(false,'ERROR');$('loadStatus').textContent='ロードまたは推論に失敗しました。';$('output').classList.add('placeholder');$('output').textContent='推論を完了できませんでした。';notice('推論エラー: '+(e.message||String(e))+' — ONNXの入出力仕様や演算子がブラウザー実行に対応していない可能性があります。')}}
+async function generate(){
+  const rawPrompt=$('prompt').value.trim();
+  if(!rawPrompt){notice('先に問いを入力してください。');return}
+  notice('');
+  busy(true,'LOADING');
+  $('output').classList.remove('placeholder');
+  $('output').textContent='モデルを読み込んでいます…';
+  try{
+    const s=await getSession();
+    const inputName=s.inputNames[0],outputName=s.outputNames[0];
+    const rawIds=Array.from(rawPrompt,c=>c.codePointAt(0));
+    const ids=rawIds.slice(0,27);
+    if(rawIds.length>27){
+      $('loadStatus').textContent='入力が長いため、先頭27文字に制限しました。';
+    }
+    let generated='';
+    busy(true,'INFERENCE');
+    // The graph fails at sequence lengths 44/45. Keep every model input <= 43 tokens.
+    const maxNewTokens=Math.min(16,Math.max(0,43-ids.length));
+    for(let i=0;i<maxNewTokens;i++){
+      if(ids.length>=43)break;
+      const input=new ort.Tensor('int64',BigInt64Array.from(ids,n=>BigInt(n)),[1,ids.length]);
+      const result=await s.run({[inputName]:input});
+      const token=nextToken(result[outputName]);
+      if(!Number.isInteger(token)||token<0||token>0x10ffff)break;
+      generated+=String.fromCodePoint(token);
+      ids.push(token);
+      $('output').textContent=generated||'…';
+      if(generated.includes(TARGET)||token===0||generated.includes('\\n'))break;
+    }
+    if(!generated)throw Error('出力トークンを取得できませんでした。ONNXの出力仕様がサンプルと異なる可能性があります。');
+    $('loadStatus').textContent='モデルの準備ができました。';
+    busy(false,'READY');
+  }catch(e){
+    busy(false,'ERROR');
+    $('loadStatus').textContent='ロードまたは推論に失敗しました。';
+    $('output').classList.add('placeholder');
+    $('output').textContent='推論を完了できませんでした。';
+    notice('推論エラー: '+(e.message||String(e))+' — ONNXの入出力仕様や演算子がブラウザー実行に対応していない可能性があります。');
+  }
+}
 $('run').addEventListener('click',generate);$('prompt').addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter')generate()});
 </script></body></html>
