@@ -24,7 +24,31 @@ const $=id=>document.getElementById(id);let sessionPromise=null;
 function notice(s){$('notice').textContent=s;$('notice').classList.toggle('show',!!s)}
 function busy(on,state){$('run').disabled=on;$('run').textContent=on?'処理中…':'モデルを起動 ↗';$('progress').classList.toggle('show',on);$('state').textContent=state}
 async function getSession(){if(!window.ort)throw Error('ONNX Runtime Web を読み込めません。ネットワーク接続を確認してください。');if(!sessionPromise){ort.env.wasm.numThreads=1;sessionPromise=(async()=>{let bytes,cache=null;try{if('caches'in window)cache=await caches.open(CACHE)}catch(_){}if(cache){try{const hit=await cache.match(MODEL);if(hit){$('loadStatus').textContent='キャッシュ済みモデルを使用しています。';bytes=await hit.arrayBuffer()}}catch(_){}}if(!bytes){$('loadStatus').textContent='モデルをダウンロードしています…';$('progress').classList.add('download');const response=await fetch(MODEL);if(!response.ok)throw Error('モデル取得に失敗しました: HTTP '+response.status);const cacheWrite=cache?cache.put(MODEL,response.clone()).catch(()=>{}):Promise.resolve();if(response.body&&response.body.getReader){const reader=response.body.getReader(),chunks=[];let received=0;const total=Number(response.headers.get('content-length'))||0;while(true){const part=await reader.read();if(part.done)break;chunks.push(part.value);received+=part.value.length;if(total){const percent=Math.min(100,Math.round(received/total*100));$('progress').firstElementChild.style.width=percent+'%';$('loadStatus').textContent='モデルをダウンロード中… '+percent+'% ('+(received/1048576).toFixed(0)+' / '+(total/1048576).toFixed(0)+' MB)'}else $('loadStatus').textContent='モデルをダウンロード中… '+(received/1048576).toFixed(0)+' MB'}bytes=new Uint8Array(received);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length}}else bytes=await response.arrayBuffer();await cacheWrite;$('loadStatus').textContent=cache?'ダウンロード完了。次回はキャッシュを利用します。':'ダウンロード完了。'}$('progress').classList.remove('download');$('loadStatus').textContent='ONNXモデルを初期化しています…';return ort.InferenceSession.create(bytes,{executionProviders:['wasm']})})().catch(e=>{sessionPromise=null;throw e})}return sessionPromise}
-function nextToken(t){const d=t.data,shape=t.dims,vocab=shape.length>=2?shape[shape.length-1]:d.length,start=d.length-vocab;let best=start,score=Number(d[start]);for(let i=start+1;i<start+vocab;i++){if(Number(d[i])>score){best=i;score=Number(d[i])}}return best-start}
+function isDisplayableToken(token){
+  if(!Number.isInteger(token)||token<0||token>0x10ffff)return false;
+  const ch=String.fromCodePoint(token);
+  if(/[\\p{C}]/u.test(ch))return false;
+  return /[\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\p{Script=Latin}\\p{N}\\p{P}\\p{Z}\\p{S}]/u.test(ch);
+}
+function nextToken(t,history){
+  const d=t.data,shape=t.dims,vocab=shape.length>=2?shape[shape.length-1]:d.length,start=d.length-vocab;
+  const recent=history.slice(-8),candidates=[];
+  for(let i=start;i<start+vocab;i++){
+    const token=i-start;
+    if(!isDisplayableToken(token))continue;
+    let score=Number(d[i]);
+    const repeats=recent.filter(id=>id===token).length;
+    if(repeats)score-=1.5*repeats;
+    candidates.push({token,score});
+  }
+  if(!candidates.length)throw new Error('表示可能なUnicode文字の候補がありません。');
+  candidates.sort((a,b)=>b.score-a.score);
+  const top=candidates.slice(0,Math.min(12,candidates.length));
+  const max=top[0].score,weights=top.map(x=>Math.exp(Math.max(-30,(x.score-max)/0.8)));
+  let draw=Math.random()*weights.reduce((a,b)=>a+b,0);
+  for(let i=0;i<top.length;i++){draw-=weights[i];if(draw<=0)return top[i].token}
+  return top[0].token;
+}
 async function generate(){
   const rawPrompt=$('prompt').value.trim();
   if(!rawPrompt){notice('先に問いを入力してください。');return}
@@ -48,7 +72,7 @@ async function generate(){
       if(ids.length>=43)break;
       const input=new ort.Tensor('int64',BigInt64Array.from(ids,n=>BigInt(n)),[1,ids.length]);
       const result=await s.run({[inputName]:input});
-      const token=nextToken(result[outputName]);
+      const token=nextToken(result[outputName],ids);
       if(!Number.isInteger(token)||token<0||token>0x10ffff)break;
       generated+=String.fromCodePoint(token);
       ids.push(token);
