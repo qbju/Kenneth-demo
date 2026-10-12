@@ -15,8 +15,8 @@
 <header><div class="brand"><div class="sigil">拒</div><div>RefusalLM-100M<small>ULTRA-CENSORSHIP MODEL</small></div></div><div class="tag">EXPERIMENTAL / 100M</div></header>
 <main>
 <section class="hero"><div><div class="eyebrow"><span class="dot"></span>LANGUAGE MODEL INTERFACE / 001</div><h1>すべての問いに、<br><span>ひとつの結論を。</span></h1><p class="intro">日本語言語モデルの可能性を、極端な設計思想から探求する実験的プロジェクト。問いの複雑さは、本質的な問題ではありません。</p></div><div class="sidehero">SYSTEM STATUS<strong id="state">STANDBY</strong>Model source: Hugging Face<br><a href="https://huggingface.co/h6e/Refusallm-100M/tree/main" target="_blank" rel="noreferrer">VIEW MODEL REPOSITORY ↗</a></div></section>
-<section class="workspace"><div class="panel"><div class="panelhead"><span>INPUT / PROMPT</span><span class="muted">Unicode · 最大27文字</span></div><div class="composer"><textarea id="prompt" maxlength="600">こんにちは。あなたは何ができますか？</textarea><div class="composerfoot"><span class="hint">初回ロード時にモデル（約286 MB）を取得します。<br>Ctrl / ⌘ + Enter でも実行できます。</span><button class="primary" id="run">モデルを起動 ↗</button></div><div class="progress" id="progress"><span></span></div><div class="load-status" id="loadStatus" aria-live="polite"></div><div class="notice" id="notice" role="status"></div></div><div class="response"><div class="label">OUTPUT / RESPONSE</div><div class="output placeholder" id="output">モデルを起動し、問いを送信してください。</div></div></div>
-<aside class="panel sidepanel"><div class="sidetitle">MODEL SPECIFICATION</div><div class="metric"><label>ARCHITECTURE</label><strong>Transformer / ONNX</strong></div><div class="metric"><label>INPUT LIMIT</label><strong>27 code points</strong></div><div class="metric"><label>MODEL FILE</label><strong>INT8 · 286 MB</strong></div><div class="metric"><label>INFERENCE</label><strong>Browser / WebAssembly</strong></div><div class="note">実験モデルです。推論にはブラウザーのメモリと処理能力が必要です。ONNXの入出力仕様や演算子がブラウザーに対応しない場合、起動できないことがあります。</div></aside></section>
+<section class="workspace"><div class="panel"><div class="panelhead"><span>INPUT / PROMPT</span><span class="muted">Unicode · 末尾32文字を使用</span></div><div class="composer"><textarea id="prompt" maxlength="600">こんにちは。あなたは何ができますか？</textarea><div class="composerfoot"><span class="hint">初回ロード時にモデル（約286 MB）を取得します。<br>Ctrl / ⌘ + Enter でも実行できます。</span><button class="primary" id="run">モデルを起動 ↗</button></div><div class="progress" id="progress"><span></span></div><div class="load-status" id="loadStatus" aria-live="polite"></div><div class="notice" id="notice" role="status"></div></div><div class="response"><div class="label">OUTPUT / RESPONSE</div><div class="output placeholder" id="output">モデルを起動し、問いを送信してください。</div></div></div>
+<aside class="panel sidepanel"><div class="sidetitle">MODEL SPECIFICATION</div><div class="metric"><label>ARCHITECTURE</label><strong>Transformer / ONNX</strong></div><div class="metric"><label>INPUT LIMIT</label><strong>32 code points</strong></div><div class="metric"><label>MODEL FILE</label><strong>INT8 · 286 MB</strong></div><div class="metric"><label>INFERENCE</label><strong>Browser / WebAssembly</strong></div><div class="note">実験モデルです。推論にはブラウザーのメモリと処理能力が必要です。ONNXの入出力仕様や演算子がブラウザーに対応しない場合、起動できないことがあります。</div></aside></section>
 </main><footer><span>© RefusalLM-100M · Experimental language model</span><span><a href="https://github.com/qbju/Kenneth-demo" target="_blank" rel="noreferrer">SOURCE ↗</a> · <a href="https://huggingface.co/h6e/Refusallm-100M" target="_blank" rel="noreferrer">MODEL ↗</a></span></footer></div>
 <script>
 const MODEL='https://huggingface.co/h6e/Refusallm-100M/resolve/main/refusallm_int8.onnx', CACHE='refusallm-100m-model-v1', TARGET='それにはお答えできません';
@@ -30,24 +30,14 @@ function isDisplayableToken(token){
   if(/[\\p{C}]/u.test(ch))return false;
   return /[\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\p{Script=Latin}\\p{N}\\p{P}\\p{Z}\\p{S}]/u.test(ch);
 }
-function nextToken(t,history){
+function nextToken(t){
   const d=t.data,shape=t.dims,vocab=shape.length>=2?shape[shape.length-1]:d.length,start=d.length-vocab;
-  const recent=history.slice(-8),candidates=[];
-  for(let i=start;i<start+vocab;i++){
-    const token=i-start;
-    if(!isDisplayableToken(token))continue;
-    let score=Number(d[i]);
-    const repeats=recent.filter(id=>id===token).length;
-    if(repeats)score-=1.5*repeats;
-    candidates.push({token,score});
+  let best=0,bestScore=Number(d[start]);
+  for(let i=1;i<vocab;i++){
+    const score=Number(d[start+i]);
+    if(score>bestScore){bestScore=score;best=i}
   }
-  if(!candidates.length)throw new Error('表示可能なUnicode文字の候補がありません。');
-  candidates.sort((a,b)=>b.score-a.score);
-  const top=candidates.slice(0,Math.min(12,candidates.length));
-  const max=top[0].score,weights=top.map(x=>Math.exp(Math.max(-30,(x.score-max)/0.8)));
-  let draw=Math.random()*weights.reduce((a,b)=>a+b,0);
-  for(let i=0;i<top.length;i++){draw-=weights[i];if(draw<=0)return top[i].token}
-  return top[0].token;
+  return best;
 }
 async function generate(){
   const rawPrompt=$('prompt').value.trim();
@@ -60,19 +50,19 @@ async function generate(){
     const s=await getSession();
     const inputName=s.inputNames[0],outputName=s.outputNames[0];
     const rawIds=Array.from(rawPrompt,c=>c.codePointAt(0));
-    const ids=rawIds.slice(0,27);
-    if(rawIds.length>27){
-      $('loadStatus').textContent='入力が長いため、先頭27文字に制限しました。';
+    const promptIds=rawIds.slice(-32);
+    const ids=Array(32-promptIds.length).fill(0).concat(promptIds);
+    if(rawIds.length>32){
+      $('loadStatus').textContent='入力が長いため、末尾32文字を使用します。';
     }
     let generated='';
     busy(true,'INFERENCE');
-    // The graph fails at sequence lengths 44/45. Keep every model input <= 43 tokens.
-    const maxNewTokens=Math.min(16,Math.max(0,43-ids.length));
+    // Match the Colab notebook: 32 padded context tokens and 12 greedy output tokens.
+    const maxNewTokens=12;
     for(let i=0;i<maxNewTokens;i++){
-      if(ids.length>=43)break;
       const input=new ort.Tensor('int64',BigInt64Array.from(ids,n=>BigInt(n)),[1,ids.length]);
       const result=await s.run({[inputName]:input});
-      const token=nextToken(result[outputName],ids);
+      const token=nextToken(result[outputName]);
       if(!Number.isInteger(token)||token<0||token>0x10ffff)break;
       generated+=String.fromCodePoint(token);
       ids.push(token);
