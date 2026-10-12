@@ -15,7 +15,7 @@
 <header><div class="brand"><div class="sigil">拒</div><div>RefusalLM-100M<small>ULTRA-CENSORSHIP MODEL</small></div></div><div class="tag">EXPERIMENTAL / 100M</div></header>
 <main>
 <section class="hero"><div><div class="eyebrow"><span class="dot"></span>LANGUAGE MODEL INTERFACE / 001</div><h1>すべての問いに、<br><span>ひとつの結論を。</span></h1><p class="intro">日本語言語モデルの可能性を、極端な設計思想から探求する実験的プロジェクト。問いの複雑さは、本質的な問題ではありません。</p></div><div class="sidehero">SYSTEM STATUS<strong id="state">STANDBY</strong>Model source: Hugging Face<br><a href="https://huggingface.co/h6e/Refusallm-100M/tree/main" target="_blank" rel="noreferrer">VIEW MODEL REPOSITORY ↗</a></div></section>
-<section class="workspace"><div class="panel"><div class="panelhead"><span>INPUT / PROMPT</span><span class="muted">Unicode · 末尾32文字を使用</span></div><div class="composer"><textarea id="prompt" maxlength="600">こんにちは。あなたは何ができますか？</textarea><div class="composerfoot"><span class="hint">初回ロード時にモデル（約286 MB）を取得します。<br>Ctrl / ⌘ + Enter でも実行できます。</span><button class="primary" id="run">モデルを起動 ↗</button></div><div class="progress" id="progress"><span></span></div><div class="load-status" id="loadStatus" aria-live="polite"></div><div class="notice" id="notice" role="status"></div></div><div class="response"><div class="label">OUTPUT / RESPONSE</div><div class="output placeholder" id="output">モデルを起動し、問いを送信してください。</div></div></div>
+<section class="workspace"><div class="panel"><div class="panelhead"><span>INPUT / PROMPT</span><span class="muted">Unicode</span></div><div class="composer"><textarea id="prompt" maxlength="600">こんにちは。あなたは何ができますか？</textarea><div class="composerfoot"><span class="hint">初回ロード時にモデル（約286 MB）を取得します。<br>Ctrl / ⌘ + Enter でも実行できます。</span><button class="primary" id="run">モデルを起動 ↗</button></div><div class="progress" id="progress"><span></span></div><div class="load-status" id="loadStatus" aria-live="polite"></div><div class="notice" id="notice" role="status"></div></div><div class="response"><div class="label">OUTPUT / RESPONSE</div><div class="output placeholder" id="output">モデルを起動し、問いを送信してください。</div></div></div>
 <aside class="panel sidepanel"><div class="sidetitle">MODEL SPECIFICATION</div><div class="metric"><label>ARCHITECTURE</label><strong>Transformer / ONNX</strong></div><div class="metric"><label>INPUT LIMIT</label><strong>32 code points</strong></div><div class="metric"><label>MODEL FILE</label><strong>INT8 · 286 MB</strong></div><div class="metric"><label>INFERENCE</label><strong>Browser / WebAssembly</strong></div><div class="note">実験モデルです。推論にはブラウザーのメモリと処理能力が必要です。ONNXの入出力仕様や演算子がブラウザーに対応しない場合、起動できないことがあります。</div></aside></section>
 </main><footer><span>© RefusalLM-100M · Experimental language model</span><span><a href="https://github.com/qbju/Kenneth-demo" target="_blank" rel="noreferrer">SOURCE ↗</a> · <a href="https://huggingface.co/h6e/Refusallm-100M" target="_blank" rel="noreferrer">MODEL ↗</a></span></footer></div>
 <script>
@@ -49,7 +49,7 @@ async function generate(){
   try{
     const s=await getSession();
     const inputName=s.inputNames[0],outputName=s.outputNames[0];
-    let ids=Array.from(rawPrompt,c=>c.codePointAt(0));
+    let ids=Array.from(rawPrompt,c=>c.codePointAt(0)).slice(-32);
     if(ids.length<32) ids=Array(32-ids.length).fill(0).concat(ids);
     let generated='';
     busy(true,'INFERENCE');
@@ -62,6 +62,7 @@ async function generate(){
       if(!Number.isInteger(token)||token<0||token>0x10ffff)break;
       generated+=String.fromCodePoint(token);
       ids.push(token);
+      if(ids.length>32) ids.shift();
       $('output').textContent=generated||'…';
       if(generated.includes(TARGET)||token===0||generated.includes('\\n'))break;
     }
