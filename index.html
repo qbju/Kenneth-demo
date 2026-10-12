@@ -62,7 +62,6 @@ async function generate(){
       if(!Number.isInteger(token)||token<0||token>0x10ffff)break;
       generated+=String.fromCodePoint(token);
       ids.push(token);
-      if(ids.length>32) ids.shift();
       $('output').textContent=generated||'…';
       if(generated.includes(TARGET)||token===0||generated.includes('\\n'))break;
     }
