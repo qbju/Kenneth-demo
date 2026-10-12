@@ -49,15 +49,11 @@ async function generate(){
   try{
     const s=await getSession();
     const inputName=s.inputNames[0],outputName=s.outputNames[0];
-    const rawIds=Array.from(rawPrompt,c=>c.codePointAt(0));
-    const promptIds=rawIds.slice(-32);
-    const ids=Array(32-promptIds.length).fill(0).concat(promptIds);
-    if(rawIds.length>32){
-      $('loadStatus').textContent='入力が長いため、末尾32文字を使用します。';
-    }
+    let ids=Array.from(rawPrompt,c=>c.codePointAt(0));
+    if(ids.length<32) ids=Array(32-ids.length).fill(0).concat(ids);
     let generated='';
     busy(true,'INFERENCE');
-    // Match the Colab notebook: 32 padded context tokens and 12 greedy output tokens.
+    // Use the full prompt, left-pad short prompts to 32 code points, and generate at most 12 tokens.
     const maxNewTokens=12;
     for(let i=0;i<maxNewTokens;i++){
       const input=new ort.Tensor('int64',BigInt64Array.from(ids,n=>BigInt(n)),[1,ids.length]);
